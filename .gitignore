@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual env
+.env
+.venv
+env/
+
+# Mac
+.DS_Store
+
+# Spark
+metastore_db/
+spark-warehouse/
+
+# Data (keep repo lightweight)
+data/raw/*
+data/processed/*
+data/curated/*
+!data/raw/.keep
+!data/processed/.keep
+!data/curated/.keep
