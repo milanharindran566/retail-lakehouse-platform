@@ -46,6 +46,7 @@ Basic PySpark ETL
 Medallion architecture
 
 v2
+
 Structured logging
 Incremental loading
 Dimensional modeling (Star schema)
