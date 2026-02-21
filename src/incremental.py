@@ -1,49 +1,95 @@
 from pyspark.sql import SparkSession
 from transformation import validateAndClean, enrichTransactions
-from pyspark.sql.functions import broadcast
+from config import CONFIG
+from logger import get_logger
 
-CURATED_PATH = "../data/curated/enriched_transactions"
-BATCH2_PATH = "../data/raw/sales_transactions_batch2.csv"
+logger = get_logger(__name__)
+logger.info("🚀 Starting incremental load step")
 
 spark = SparkSession.builder \
-    .master("local[*]") \
+    .master(CONFIG["master"]) \
     .appName("IncrementalLoadStep") \
     .getOrCreate()
 
-# Read existing curated data
-curated_df = spark.read.parquet(CURATED_PATH)
-print("Existing curated count:", curated_df.count())
+try:
+    # ========================
+    # Read existing curated
+    # ========================
+    logger.info("Reading existing curated dataset")
+    curated_df = spark.read.parquet(CONFIG["curated"])
+    existing_count = curated_df.count()
+    logger.info(f"Existing curated count: {existing_count}")
 
-# Read new batch
-new_transactions = spark.read.csv(BATCH2_PATH, header=True, inferSchema=True)
+    # ========================
+    # Read new batch
+    # ========================
+    logger.info("Reading new transactions batch")
+    new_transactions = spark.read.csv(
+        CONFIG["raw_transactions_batch_2"],
+        header=True,
+        inferSchema=True
+    )
 
-# Clean new batch
-cleaned_new = validateAndClean(new_transactions)
+    # ========================
+    # Clean new batch
+    # ========================
+    logger.info("Cleaning new batch")
+    cleaned_new = validateAndClean(new_transactions)
+    logger.info(f"Cleaned batch count: {cleaned_new.count()}")
 
-# Read dimension tables
-products = spark.read.csv("../data/raw/products.csv", header=True, inferSchema=True)
-stores = spark.read.csv("../data/raw/stores.csv", header=True, inferSchema=True)
+    # ========================
+    # Read dimension tables
+    # ========================
+    logger.info("Reading dimension tables")
+    products = spark.read.csv(CONFIG["products"], header=True, inferSchema=True)
+    stores = spark.read.csv(CONFIG["stores"], header=True, inferSchema=True)
 
-# Enrich new batch
-enriched_new = enrichTransactions(cleaned_new, products, stores)
+    # ========================
+    # Enrich new batch
+    # ========================
+    logger.info("Enriching new batch")
+    enriched_new = enrichTransactions(cleaned_new, products, stores)
+    logger.info(f"Enriched batch count: {enriched_new.count()}")
 
-# Keep ONLY records that are NOT already in curated
-new_records = enriched_new.join(
-    curated_df.select("transaction_id"),
-    on="transaction_id",
-    how="left_anti"
-)
+    # ========================
+    # Identify new records
+    # ========================
+    logger.info("Performing LEFT ANTI join to detect new records")
+    new_records = enriched_new.join(
+        curated_df.select("transaction_id"),
+        on="transaction_id",
+        how="left_anti"
+    )
 
-print("New records to insert:", new_records.count())
+    new_records_count = new_records.count()
+    logger.info(f"New records to insert: {new_records_count}")
 
-# Append new records to curated
-new_records.write \
-    .partitionBy("transaction_year", "transaction_month") \
-    .mode("append") \
-    .parquet(CURATED_PATH)
+    # ========================
+    # Write incremental data
+    # ========================
+    logger.info("Appending new records to curated layer")
+    new_records.write \
+        .partitionBy("transaction_year", "transaction_month") \
+        .mode("append") \
+        .parquet(CONFIG["curated"])
 
-# Validate final count
-final_df = spark.read.parquet(CURATED_PATH)
-print("Final curated count:", final_df.count())
+    logger.info("Write completed")
 
-spark.stop()
+    # ========================
+    # Final validation
+    # ========================
+    logger.info("Validating final curated dataset")
+    final_df = spark.read.parquet(CONFIG["curated"])
+    final_count = final_df.count()
+
+    logger.info(f"Final curated count: {final_count}")
+    logger.info(f"Net new rows added: {final_count - existing_count}")
+
+    logger.info("✅ Incremental load completed successfully")
+
+except Exception as e:
+    logger.exception("❌ Incremental load failed")
+    raise
+
+finally:
+    spark.stop()

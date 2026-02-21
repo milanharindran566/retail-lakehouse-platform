@@ -1,22 +1,64 @@
 from pyspark.sql import SparkSession
+from config import CONFIG
+from logger import get_logger
 
-spark = SparkSession.builder \
-    .master("local[*]") \
-    .getOrCreate()
+logger = get_logger(__name__)
 
-products = spark.read.csv("../data/raw/products.csv", header= True, inferSchema=True)
-stores = spark.read.csv("../data/raw/stores.csv", header=True, inferSchema=True)
-sales_transactions = spark.read.csv("../data/raw/sales_transactions_batch1.csv", header=True, inferSchema=True)
+def run_ingestion():
 
-products.printSchema()
-stores.printSchema()
-sales_transactions.printSchema()
+    logger.info("Starting ingestion step")
 
-row_counts = {
-    "products" : products.count(),
-    "stores" : stores.count(),
-    "sales_transactions" : sales_transactions.count()
-}
+    spark = SparkSession.builder \
+        .master(CONFIG["master"]) \
+        .appName("IngestionStep") \
+        .getOrCreate()
 
-for x in row_counts:
-    print(f"{x} -> {row_counts[x]} rows\n")
+    try:
+        logger.info("Reading products data")
+        products = spark.read.csv(
+            CONFIG["products"],
+            header=True,
+            inferSchema=True
+        )
+
+        logger.info("Reading stores data")
+        stores = spark.read.csv(
+            CONFIG["stores"],
+            header=True,
+            inferSchema=True
+        )
+
+        logger.info("Reading transactions data")
+        sales_transactions = spark.read.csv(
+            CONFIG["raw_transactions"],
+            header=True,
+            inferSchema=True
+        )
+
+        logger.info("Printing schemas")
+        products.printSchema()
+        stores.printSchema()
+        sales_transactions.printSchema()
+
+        logger.info("Calculating row counts")
+
+        row_counts = {
+            "products": products.count(),
+            "stores": stores.count(),
+            "sales_transactions": sales_transactions.count()
+        }
+
+        for name, count in row_counts.items():
+            logger.info(f"{name} -> {count} rows")
+
+        logger.info("Ingestion completed successfully")
+
+        return products, stores, sales_transactions
+
+    except Exception as e:
+        logger.error(f"Ingestion failed: {str(e)}")
+        raise
+
+
+if __name__ == "__main__":
+    run_ingestion()

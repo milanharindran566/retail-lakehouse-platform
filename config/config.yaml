@@ -1,0 +1,11 @@
+paths:
+  raw_transactions_batch_1: ../data/raw/sales_transactions_batch1.csv
+  products: ../data/raw/products.csv
+  stores: ../data/raw/stores.csv
+  processed: ../data/processed/sales_transactions_cleaned
+  curated: ../data/curated/enriched_transactions
+  raw_transactions_batch_2: ../data/raw/sales_transactions_batch2.csv
+
+spark:
+  app_name: RetailPipeline
+  master: local[*]
