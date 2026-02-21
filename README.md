@@ -38,3 +38,16 @@ The curated dataset is further modeled into a star schema to support analytical 
 
 ### Note on Degenerate Dimension
 `transaction_id` is modeled as a degenerate dimension since it uniquely identifies a transaction but has no descriptive attributes.
+
+
+v1
+
+Basic PySpark ETL
+Medallion architecture
+
+v2
+Structured logging
+Incremental loading
+Dimensional modeling (Star schema)
+Data warehouse layer
+Observability metrics
